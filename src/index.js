@@ -6,13 +6,20 @@ import 'bootstrap/dist/css/bootstrap.css';
 // import App from './App';
 // import reportWebVitals from './reportWebVitals';
 
-ReactDOM.render(<>
-<div className="container">
-<h1 className="row">Rhyme Finder</h1>
-<RhymeFinderApp/>
-</div>
-</>,
-document.getElementById('root'));
+ReactDOM.render(
+  <>
+    <div className="container">
+      <div>
+        <a href="https://github.com/mventrice/579_ps6">
+          View source code
+        </a>
+      </div>
+      <h1 className="row">Rhyme Finder</h1>
+      <RhymeFinderApp />
+    </div>
+  </>,
+  document.getElementById('root')
+);
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))
