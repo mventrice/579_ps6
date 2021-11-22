@@ -1,5 +1,67 @@
 import { useState, useRef } from 'react';
 
+function groupBy(objects, property) {
+  // If property is not a function, convert it to a function that accepts one argument (an object) and returns that object's
+  // value for property (obj[property])
+  if (typeof property !== 'function') {
+    const propName = property;
+    property = (obj) => obj[propName];
+  }
+
+  const groupedObjects = new Map(); // Keys: group names, value: list of items in that group
+  for (const object of objects) {
+    const groupName = property(object);
+    //Make sure that the group exists
+    if (!groupedObjects.has(groupName)) {
+      groupedObjects.set(groupName, []);
+    }
+    groupedObjects.get(groupName).push(object);
+  }
+
+  // Create an object with the results. Sort the keys so that they are in a sensible "order"
+  const result = {};
+  for (const key of Array.from(
+    groupedObjects.keys()
+  ).sort()) {
+    result[key] = groupedObjects.get(key);
+  }
+  return result;
+}
+
+function getRhymes(rel_rhy, callback) {
+  fetch(
+    `https://api.datamuse.com/words?${new URLSearchParams({
+      rel_rhy,
+    }).toString()}`
+  )
+    .then((response) => response.json())
+    .then(
+      (data) => {
+        callback(data);
+      },
+      (err) => {
+        console.error(err);
+      }
+    );
+}
+
+function getSynonyms(ml, callback) {
+  fetch(
+    `https://api.datamuse.com/words?${new URLSearchParams({
+      ml,
+    }).toString()}`
+  )
+    .then((response) => response.json())
+    .then(
+      (data) => {
+        callback(data);
+      },
+      (err) => {
+        console.error(err);
+      }
+    );
+}
+
 function RhymeFinderApp() {
   const inputEl = useRef(null);
   const [rhymes_list, setRhymes_list] = useState([]);
@@ -8,68 +70,7 @@ function RhymeFinderApp() {
   const [rhymesVisible, setRhymesVisible] = useState(false);
   const [synonymsVisible, setSynonymsVisible] =
     useState(false);
-
-  function groupBy(objects, property) {
-    // If property is not a function, convert it to a function that accepts one argument (an object) and returns that object's
-    // value for property (obj[property])
-    if (typeof property !== 'function') {
-      const propName = property;
-      property = (obj) => obj[propName];
-    }
-
-    const groupedObjects = new Map(); // Keys: group names, value: list of items in that group
-    for (const object of objects) {
-      const groupName = property(object);
-      //Make sure that the group exists
-      if (!groupedObjects.has(groupName)) {
-        groupedObjects.set(groupName, []);
-      }
-      groupedObjects.get(groupName).push(object);
-    }
-
-    // Create an object with the results. Sort the keys so that they are in a sensible "order"
-    const result = {};
-    for (const key of Array.from(
-      groupedObjects.keys()
-    ).sort()) {
-      result[key] = groupedObjects.get(key);
-    }
-    return result;
-  }
-
-  function getRhymes(rel_rhy, callback) {
-    fetch(
-      `https://api.datamuse.com/words?${new URLSearchParams(
-        { rel_rhy }
-      ).toString()}`
-    )
-      .then((response) => response.json())
-      .then(
-        (data) => {
-          callback(data);
-        },
-        (err) => {
-          console.error(err);
-        }
-      );
-  }
-
-  function getSynonyms(ml, callback) {
-    fetch(
-      `https://api.datamuse.com/words?${new URLSearchParams(
-        { ml }
-      ).toString()}`
-    )
-      .then((response) => response.json())
-      .then(
-        (data) => {
-          callback(data);
-        },
-        (err) => {
-          console.error(err);
-        }
-      );
-  }
+  const [loading, setLoading] = useState(false);
 
   let savedWords = [];
   const [savedWordsOutput, setSavedWordsOutput] =
@@ -87,20 +88,31 @@ function RhymeFinderApp() {
   }
 
   function showRhymes() {
+    setresultsExist(true);
     showRhymeDescription(inputEl.current.value);
+    setLoading(true);
     getRhymes(inputEl.current.value, (results) => {
       setRhymes_list(results);
+      setLoading(false);
+      if (results < 1) {
+        setresultsExist(false);
+      }
     });
   }
 
   function showSynonyms() {
+    setresultsExist(true);
     showSynonymDescription(inputEl.current.value);
+    setLoading(true);
     getSynonyms(inputEl.current.value, (results) => {
       // setInputWord(inputEl.current.value);
       setSynonyms_list(results);
+      setLoading(false);
+      if (results < 1) {
+        setresultsExist(false);
+      }
     });
   }
-
   function showRhymeDescription(inputWord) {
     setDescription(
       'Words that rhyme with ' + inputWord + ':'
@@ -118,6 +130,7 @@ function RhymeFinderApp() {
   let sylElement = null;
   const groups = groupBy(rhymes_list, 'numSyllables');
   const rhymes_elements = [];
+  const [resultsExist, setresultsExist] = useState(true);
 
   for (let obj in groups) {
     obj = parseInt(obj);
@@ -161,38 +174,52 @@ function RhymeFinderApp() {
 
   return (
     <div className="container">
-      {savedWordsOutput ? (
-        <p>Saved words: {savedWordsOutput}</p>
-      ) : (
-        <p>Saved words: (None)</p>
-      )}
-      <input ref={inputEl} type="text"></input>
-      <button
-        className="btn btn-primary"
-        onClick={() => {
-          setSynonymsVisible(false);
-          setRhymesVisible(true);
-          showRhymes();
-        }}
-      >
-        Show rhyming words
-      </button>
-      <button
-        className="btn btn-secondary"
-        onClick={() => {
-          setSynonymsVisible(true);
-          setRhymesVisible(false);
-          showSynonyms();
-        }}
-      >
-        Show synonyms
-      </button>
-      <br />
-      <h2 className="col">{description}</h2>
-      {rhymesVisible ? <ul>{rhymes_elements}</ul> : null}
-      {synonymsVisible ? (
-        <ul>{synonyms_elements}</ul>
-      ) : null}
+      <div className="row">
+        {savedWordsOutput ? (
+          <p>Saved words: {savedWordsOutput}</p>
+        ) : (
+          <p>Saved words: (None)</p>
+        )}
+        <div className="row">
+          <div className="input-group col">
+            <input
+              className="form-control"
+              placeholder="Enter a word"
+              ref={inputEl}
+              type="text"
+            ></input>
+
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                setSynonymsVisible(false);
+                setRhymesVisible(true);
+                showRhymes();
+              }}
+            >
+              Show rhyming words
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                setSynonymsVisible(true);
+                setRhymesVisible(false);
+                showSynonyms();
+              }}
+            >
+              Show synonyms
+            </button>
+          </div>
+        </div>
+        <br />
+        <h2 className="col">{description}</h2>
+        {resultsExist ? null : <div>No results.</div>}
+        {loading ? <div>loading...</div> : null}
+        {rhymesVisible ? <ul>{rhymes_elements}</ul> : null}
+        {synonymsVisible ? (
+          <ul>{synonyms_elements}</ul>
+        ) : null}
+      </div>
     </div>
   );
 }
